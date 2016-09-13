@@ -1,0 +1,293 @@
+#! /usr/bin/env groovy
+
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
+
+
+scriptDir = new File(getClass().protectionDomain.codeSource.location.path).parent
+println scriptDir
+
+class StringLibrary {
+
+  static String collapsePath(String path) {
+    while (path ==~ /.*\/\/.*/) {
+      path = path.replaceAll(/\/\//, "/")
+    }
+    while (path ==~ /.*\/\.\/.*/) {
+      path = path.replaceAll(/\/\.\//, "/")
+    }
+    while (path ==~ /.*\/[^\/]+\/\.\.\/.*/) {
+      path = path.replaceAll(/\/[^\/]+\/\.\.\// ,"/")
+    }
+    while (path ==~ /\/\.\.\/.*/) {
+      path = path.replaceFirst(/^\/\.\.\//, "/")
+    }
+    return path
+  }
+
+}
+
+
+enum PipelineType {
+  UNKNOWN,
+  SCRIPTED,
+  DECLARATIVE
+}
+
+
+class PipelineScriptStyle {
+
+  private PipelineType pt
+
+  PipelineScriptStyle() {
+    pt = PipelineType.UNKNOWN
+  }
+
+  void setScriptedPipeline() {
+    if (pt == PipelineType.UNKNOWN) {
+      pt = PipelineType.SCRIPTED
+    }
+  }
+
+  void setDeclarativePipeline() {
+    if (pt == PipelineType.SCRIPTED) {
+      throw new Exception("Script has both declarative and scripted syntax")
+    }
+    pt = PipelineType.DECLARATIVE
+  }
+
+  boolean isScriptedPipeline() {
+    return (pt == PipelineType.SCRIPTED)
+  }
+
+  boolean isDeclarativePipeline() {
+    return (pt == PipelineType.DECLARATIVE)
+  }
+
+}
+
+
+class Configuration {
+
+  public String fn_jenkinsfile
+  public PipelineScriptStyle script_style = new PipelineScriptStyle()
+
+  Configuration(def args) {
+    def cli = new CliBuilder(usage:  "${this.class.simpleName} [OPTION]... [STAGE]",
+                             header: "Options:",
+                             footer: "Starting Stage:\n Skip to STAGE instead of starting at the first stage defined.")
+    cli.f(longOpt: 'file', args: 1, argName: 'FILE', 'Read FILE as a Jenkinsfile.')
+    cli.C(longOpt: 'directory', args: 1, argName: 'DIRECTORY', 'Change to DIRECTORY before doing anything.')
+    cli.h(longOpt: 'help', 'Print this message and exit.')
+    cli.v(longOpt: 'version', "Print the version number of ${this.class.simpleName} and exit.")
+    cli.U(longOpt: 'unsandbox', 'Disable Groovy Sandbox.')
+    cli.j(longOpt: 'jobs', args: 1, argName: 'JOBS',
+                   'Specifies the number of jobs (node commands) to run simultaneously. Default is unlimited')
+    cli.l(longOpt: 'load-average', args: 1, argName: 'LOAD',
+                   'Specifies that no new jobs (node commands) should be started if there are others jobs running'+
+                   ' and the load average is at least LOAD (a floating-point number). Default is unlimited')
+    cli.W(longOpt: 'workspace-base', args: 1, argName: 'DIRECTORY',
+                   'Use DIRECTORY as the base directory to allocating workspaces. Default is present working directory.')
+    cli.d('Print debugging information in addition to normal processing.')
+    def options = cli.parse(args)
+    if (options.h) {
+      // When user requests help, ignore the rest of the options and provide usage details
+      cli.usage()
+      System.exit(1)
+    }
+    if (options.arguments() && (options.arguments().size() > 1)) {
+      // When the user specifies more than one non-option argument, assume they meant to refer to two stages and inform
+      //  them that only one starting stage may be specified
+      println "ERROR: Only one starting stage may be specified."
+      cli.usage()
+      System.exit(1)
+    }
+    def jinkies_dir_path = getClass().protectionDomain.codeSource.location.path
+    def base_path        = System.getProperty("user.dir")
+    fn_jenkinsfile   = "Jenkinsfile"
+    if (options.C) {
+      Path dir = Paths.get(options.C)
+      if (options.C.take(1) == "/") { // absolute path specified
+        base_path = options.C
+      } else {                        // relative path specified
+        base_path = base_path + "/" + options.C
+      }
+      base_path = StringLibrary.collapsePath(base_path)
+      if (! Files.isDirectory(dir)) {
+        println "ERROR: Path specified in -C is not a directory."
+        System.exit(1)
+      }
+      if (!Files.isReadable(dir) || !Files.isExecutable(dir)) {
+        println "ERROR: Permissions denied for path specified in -C"
+        System.exit(1)
+      }
+      println "Change Dir = " + base_path
+    }
+    if (options.f) {
+      if (options.f.take(1) == "/") {
+        // absolute path specified
+        fn_jenkinsfile = options.f
+      } else {
+        // relative path specified
+        fn_jenkinsfile = StringLibrary.collapsePath(base_path + "/" + options.f)
+      }
+    }
+    println "Jenkins pipeline filename = " + fn_jenkinsfile
+    if (options.d) {
+      println "PWD = " + base_path
+      println "JINKIES in " + jinkies_dir_path
+    }
+  }
+
+}
+
+
+
+
+class JenkinsPostDelegate {
+
+  JenkinsPostDelegate() {
+  }
+
+  void always(Closure cl) {
+    println "always"
+  }
+
+  void changed(Closure cl) {
+    println "changed"
+  }
+
+  void failure(Closure cl) {
+    println "failure"
+  }
+
+  void success(Closure cl) {
+    println "success"
+  }
+
+  void unstable(Closure cl) {
+    println "unstable"
+  }
+
+}
+
+
+class JSP_Pipeline_Delegate {
+
+  def Configuration config
+
+  JSP_Pipeline_Delegate(Configuration config) {
+    this.config = config
+    this.config.script_style.setDeclarativePipeline()
+  }
+
+  void classes(String name) {
+    println "classes:" + name
+  }
+
+  void jar(String name) {
+    println "jar:" + name
+  }
+
+  void post(Closure cl) {
+    println "post"
+    cl.delegate = new JenkinsPostDelegate()
+    cl.resolveStrategy = Closure.DELEGATE_FIRST
+
+    cl()
+  }
+
+}
+
+
+class JSP_Node_Delegate {
+
+  def Configuration config
+
+  JSP_Node_Delegate(Configuration config, String name) {
+    this.config = config
+    this.config.script_style.setScriptedPipeline()
+    if (!name) {
+      println "node"
+    } else {
+      println "node("+name+")"
+    }
+  }
+
+  protected void finalize() {
+    if (!name) {
+      println "node->finalize"
+    } else {
+      println "node("+name+")->finalize"
+    }
+  }
+
+  void git(LinkedHashMap lmh) {
+    if (!lmh.containsKey("url")) {
+      System.exit(1)
+    }
+    println "node.git(): " + lmh["url"]
+  }
+
+}
+
+
+class Jinkies {
+
+  Configuration config
+
+  Jinkies(String[] args) {
+    config = new Configuration(args)
+  }
+
+  void runPipeline() {
+    File dsl = new File(config.fn_jenkinsfile)
+    Script dslScript = new GroovyShell().parse(dsl.text)
+
+    dslScript.metaClass = createEMC(dslScript.class, {
+      ExpandoMetaClass emc ->
+
+      emc.stage = {
+        String name ->
+        config.script_style.setScriptedPipeline()
+        println "stage:" + name + " " + config.fn_jenkinsfile
+      }
+
+      emc.git = {
+        LinkedHashMap lhm ->
+        println "git fakey"
+      }
+
+      emc.node = {
+        String name=null, Closure cl ->
+        cl.delegate = new JSP_Node_Delegate(config, name)
+        cl.resolveStrategy = Closure.DELEGATE_FIRST
+        cl()
+      }
+
+      emc.pipeline = {
+        Closure cl ->
+        cl.delegate = new JSP_Pipeline_Delegate(config)
+        cl.resolveStrategy = Closure.DELEGATE_FIRST
+        cl()
+      }
+    })
+    dslScript.run()
+    println "runPipeline Finished"
+  }
+
+  ExpandoMetaClass createEMC(Class clazz, Closure cl) {
+    ExpandoMetaClass emc = new ExpandoMetaClass(clazz, false)
+
+    cl(emc)
+
+    emc.initialize()
+    return emc
+  }
+
+}
+
+def Jinkies jinkies = new Jinkies(args)
+jinkies.runPipeline()
+

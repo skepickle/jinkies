@@ -1,0 +1,29 @@
+stage "test"
+
+node('some_node') {
+
+ stage "test a"
+
+ stage "test b"
+
+ git url: 'https://github.com/somewhere/repo.git'
+
+}
+
+node {
+
+ stage "test c"
+
+ stage "test d"
+
+}
+
+/*pipeline {
+  classes "target/classes"
+  jar "myLibrary.jar"
+  post {
+    always {
+    }
+  }
+}*/
+
