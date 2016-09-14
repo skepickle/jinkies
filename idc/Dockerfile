@@ -6,6 +6,8 @@ RUN DEBIAN_FRONTEND=noninteractive set -x \
     && apt-get install -y --no-install-recommends \
           git groovy2 ssh vim
 
+COPY .gitconfig /root/
+
 RUN mkdir /root/.ssh
 RUN chmod 700 /root/.ssh
 
@@ -20,3 +22,5 @@ RUN ssh -n -oStrictHostKeyChecking=no git@github.com ; true
 RUN git clone git@github.com:skepickle/jinkies.git
 
 WORKDIR /root/jinkies
+
+CMD git pull ; /bin/bash
