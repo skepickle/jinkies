@@ -7,8 +7,10 @@ cli.f(longOpt: 'file', args: 1, argName: 'FILE', 'Read FILE as a Jenkinsfile.')
 cli.C(longOpt: 'directory', args: 1, argName: 'DIRECTORY', 'Change to DIRECTORY before doing anything.')
 cli.h(longOpt: 'help', 'Print this message and exit.')
 cli.v(longOpt: 'version', "Print the version number of ${this.class.simpleName} and exit.")
-cli.U(longOpt: 'unsandbox', 'Disable Groovy Sandbox')
-cli.j(longOpt: 'jobs', args: 1, argName: 'JOBS', 'Specifies the number of jobs (nodes) to run simultaneously.')
+cli.U(longOpt: 'unsandbox', 'Disable Groovy Sandbox.')
+cli.j(longOpt: 'jobs', args: 1, argName: 'JOBS', 'Specifies the number of jobs (node commands) to run simultaneously. Default is unlimited')
+cli.l(longOpt: 'load-average', args: 1, argName: 'LOAD', 'Specifies that no new jobs (node commands) should be started if there are others jobs running and the load average is at least LOAD (a floating-point number). Default is unlimited')
+cli.W(longOpt: 'workspace-base', args: 1, argName: 'DIRECTORY', 'Use DIRECTORY as the base directory to allocating workspaces. Default is present working directory.')
 def options = cli.parse(args)
 
 if ((options.h) || (options.arguments())) {
