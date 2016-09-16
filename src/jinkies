@@ -1,0 +1,13 @@
+#! /usr/bin/env groovy
+
+def cli = new CliBuilder(usage:"${this.class.simpleName} [options]")
+cli.f(longOpt: 'file', args: 1, argName: 'FILE', 'Read FILE as a Jenkinsfile.')
+cli.C(longOpt: 'directory', args: 1, argName: 'DIRECTORY', 'Change to DIRECTORY before doing anything.')
+cli.h(longOpt: 'help', 'Print this message and exit.')
+cli.v(longOpt: 'version', "Print the version number of ${this.class.simpleName} and exit.")
+def options = cli.parse(args)
+
+if ((options.h) || (options.arguments())) {
+  cli.usage()
+}
+
