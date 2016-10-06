@@ -34,8 +34,27 @@ if (options.arguments() && (options.arguments().size() > 1)) {
 def jinkies_dir_path = getClass().protectionDomain.codeSource.location.path
 def base_path        = System.getProperty("user.dir")
 
+String collapsePath(String path) {
+  while (path ==~ /.*\/\.\/.*/) {
+    path = path.replaceAll(/\/\.\//, "/")
+  }
+  while (path ==~ /.*\/[^\/]+\/\.\.\/.*/) {
+    path = path.replaceAll(/\/[^\/]+\/\.\.\// ,"/")
+  }
+  while (path ==~ /\/\.\.\/.*/) {
+    path = path.replaceFirst(/^\/\.\.\//, "/")
+  }
+  return path
+}
+
 if (options.C) {
   Path dir = Paths.get(options.C)
+  if (options.C.take(1) == "/") { // absolute path specified
+    base_path = options.C
+  } else {                        // relative path specified
+    base_path = base_path + "/" + options.C
+  }
+  base_path = collapsePath(base_path)
   if (! Files.isDirectory(dir)) {
     println "ERROR: Path specified in -C is not a directory."
     System.exit(1)
@@ -43,13 +62,6 @@ if (options.C) {
   if (!Files.isReadable(dir) || !Files.isExecutable(dir)) {
     println "ERROR: Permissions denied for path specified in -C"
     System.exit(1)
-  }
-  if (options.C.take(1) == "/") {
-    // absolute path specified
-    base_path = options.C
-  } else {
-    // relative path specified
-    base_path = base_path + "/" + options.C
   }
   println options.C
 }
