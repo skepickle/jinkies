@@ -4,6 +4,19 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 
+String collapsePath(String path) {
+  while (path ==~ /.*\/\.\/.*/) {
+    path = path.replaceAll(/\/\.\//, "/")
+  }
+  while (path ==~ /.*\/[^\/]+\/\.\.\/.*/) {
+    path = path.replaceAll(/\/[^\/]+\/\.\.\// ,"/")
+  }
+  while (path ==~ /\/\.\.\/.*/) {
+    path = path.replaceFirst(/^\/\.\.\//, "/")
+  }
+  return path
+}
+
 def cli = new CliBuilder(usage:  "${this.class.simpleName} [OPTION]... [STAGE]",
                          header: "Options:",
                          footer: "Starting Stage:\n Skip to STAGE instead of starting at the first stage defined.")
@@ -33,19 +46,7 @@ if (options.arguments() && (options.arguments().size() > 1)) {
 
 def jinkies_dir_path = getClass().protectionDomain.codeSource.location.path
 def base_path        = System.getProperty("user.dir")
-
-String collapsePath(String path) {
-  while (path ==~ /.*\/\.\/.*/) {
-    path = path.replaceAll(/\/\.\//, "/")
-  }
-  while (path ==~ /.*\/[^\/]+\/\.\.\/.*/) {
-    path = path.replaceAll(/\/[^\/]+\/\.\.\// ,"/")
-  }
-  while (path ==~ /\/\.\.\/.*/) {
-    path = path.replaceFirst(/^\/\.\.\//, "/")
-  }
-  return path
-}
+def fn_jenkinsfile   = "Jenkinsfile"
 
 if (options.C) {
   Path dir = Paths.get(options.C)
@@ -63,7 +64,7 @@ if (options.C) {
     println "ERROR: Permissions denied for path specified in -C"
     System.exit(1)
   }
-  println options.C
+  println "Change Dir = " + base_path
 }
 
 if (options.f) {
@@ -72,8 +73,9 @@ if (options.f) {
   } else {
     // relative path specified
   }
-  println options.f
+  fn_jenkinsfile = options.f
 }
+println "Jenkins pipeline filename = " + fn_jenkinsfile
 
 if (options.d) {
   println "PWD = " + base_path
