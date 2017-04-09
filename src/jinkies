@@ -4,6 +4,49 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 
+class ArchitectureDelegate {
+  ArchitectureDelegate() {
+  }
+
+  void classes(String name) {
+    println "classes:" + name
+  }
+
+  void jar(String name) {
+    println "jar:" + name
+  }
+}
+
+class GroovyArchitecture {
+  static void runArchitectureRules(File dsl) {
+    Script dslScript = new GroovyShell().parse(dsl.text)
+
+    dslScript.metaClass = createEMC(dslScript.class, {
+        ExpandoMetaClass emc ->
+
+        emc.architecture = {
+            Closure cl ->
+
+            cl.delegate = new ArchitectureDelegate()
+            cl.resolveStrategy = Closure.DELEGATE_FIRST
+
+            cl()
+        }
+    })
+    dslScript.run()
+    println "runArchitectureRules Finished"
+  }
+
+  static ExpandoMetaClass createEMC(Class clazz, Closure cl) {
+    ExpandoMetaClass emc = new ExpandoMetaClass(clazz, false)
+
+    cl(emc)
+
+    emc.initialize()
+    return emc
+  }
+}
+
 String collapsePath(String path) {
   while (path ==~ /.*\/\.\/.*/) {
     path = path.replaceAll(/\/\.\//, "/")
@@ -82,4 +125,5 @@ if (options.d) {
   println "JINKIES in " + jinkies_dir_path
 }
 
+GroovyArchitecture.runArchitectureRules(new File(fn_jenkinsfile))
 
