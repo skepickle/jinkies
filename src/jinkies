@@ -4,8 +4,12 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 
-class ArchitectureDelegate {
-  ArchitectureDelegate() {
+class JinkiesConfiguration {
+  public String fn_jenkinsfile
+}
+
+class JenkinsPipelineDelegate {
+  JenkinsPipelineDelegate() {
   }
 
   void classes(String name) {
@@ -17,24 +21,24 @@ class ArchitectureDelegate {
   }
 }
 
-class GroovyArchitecture {
-  static void runArchitectureRules(File dsl) {
+class Pipeline {
+  static void runJenkinsPipeline(File dsl) {
     Script dslScript = new GroovyShell().parse(dsl.text)
 
     dslScript.metaClass = createEMC(dslScript.class, {
         ExpandoMetaClass emc ->
 
-        emc.architecture = {
+        emc.pipeline = {
             Closure cl ->
 
-            cl.delegate = new ArchitectureDelegate()
+            cl.delegate = new JenkinsPipelineDelegate()
             cl.resolveStrategy = Closure.DELEGATE_FIRST
 
             cl()
         }
     })
     dslScript.run()
-    println "runArchitectureRules Finished"
+    println "runJenkinsPipeline Finished"
   }
 
   static ExpandoMetaClass createEMC(Class clazz, Closure cl) {
@@ -125,5 +129,5 @@ if (options.d) {
   println "JINKIES in " + jinkies_dir_path
 }
 
-GroovyArchitecture.runArchitectureRules(new File(fn_jenkinsfile))
+Pipeline.runJenkinsPipeline(new File(fn_jenkinsfile))
 
