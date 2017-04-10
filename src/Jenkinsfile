@@ -1,5 +1,8 @@
-// architecture.groovy file
-architecture {
+pipeline {
   classes "target/classes"
   jar "myLibrary.jar"
+  post {
+    always {
+    }
+  }
 }

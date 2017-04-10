@@ -4,8 +4,138 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 
-class ArchitectureDelegate {
-  ArchitectureDelegate() {
+
+
+
+
+class JinkiesConfiguration {
+
+  public String fn_jenkinsfile
+
+  static String collapsePath(String path) {
+    while (path ==~ /.*\/\/.*/) {
+      path = path.replaceAll(/\/\//, "/")
+    }
+    while (path ==~ /.*\/\.\/.*/) {
+      path = path.replaceAll(/\/\.\//, "/")
+    }
+    while (path ==~ /.*\/[^\/]+\/\.\.\/.*/) {
+      path = path.replaceAll(/\/[^\/]+\/\.\.\// ,"/")
+    }
+    while (path ==~ /\/\.\.\/.*/) {
+      path = path.replaceFirst(/^\/\.\.\//, "/")
+    }
+    return path
+  }
+
+  JinkiesConfiguration(def args) {
+
+    def cli = new CliBuilder(usage:  "${this.class.simpleName} [OPTION]... [STAGE]",
+                             header: "Options:",
+                             footer: "Starting Stage:\n Skip to STAGE instead of starting at the first stage defined.")
+    cli.f(longOpt: 'file', args: 1, argName: 'FILE', 'Read FILE as a Jenkinsfile.')
+    cli.C(longOpt: 'directory', args: 1, argName: 'DIRECTORY', 'Change to DIRECTORY before doing anything.')
+    cli.h(longOpt: 'help', 'Print this message and exit.')
+    cli.v(longOpt: 'version', "Print the version number of ${this.class.simpleName} and exit.")
+    cli.U(longOpt: 'unsandbox', 'Disable Groovy Sandbox.')
+    cli.j(longOpt: 'jobs', args: 1, argName: 'JOBS', 'Specifies the number of jobs (node commands) to run simultaneously. Default is unlimited')
+    cli.l(longOpt: 'load-average', args: 1, argName: 'LOAD',
+                   'Specifies that no new jobs (node commands) should be started if there are others jobs running and the load average is at least LOAD (a floating-point number). Default is unlimited')
+    cli.W(longOpt: 'workspace-base', args: 1, argName: 'DIRECTORY', 'Use DIRECTORY as the base directory to allocating workspaces. Default is present working directory.')
+    cli.d('Print debugging information in addition to normal processing.')
+    def options = cli.parse(args)
+
+    if (options.h) {
+      // When user requests help, ignore the rest of the options and provide usage details
+      cli.usage()
+      System.exit(1)
+    }
+
+    if (options.arguments() && (options.arguments().size() > 1)) {
+      // When the user specifies more than one non-option argument, assume they meant to refer to two stages and inform them that only one starting stage may be specified
+      println "ERROR: Only one starting stage may be specified."
+      cli.usage()
+      System.exit(1)
+    }
+
+    def jinkies_dir_path = getClass().protectionDomain.codeSource.location.path
+    def base_path        = System.getProperty("user.dir")
+    fn_jenkinsfile   = "Jenkinsfile"
+
+    if (options.C) {
+      Path dir = Paths.get(options.C)
+      if (options.C.take(1) == "/") { // absolute path specified
+        base_path = options.C
+      } else {                        // relative path specified
+        base_path = base_path + "/" + options.C
+      }
+      base_path = collapsePath(base_path)
+      if (! Files.isDirectory(dir)) {
+        println "ERROR: Path specified in -C is not a directory."
+        System.exit(1)
+      }
+      if (!Files.isReadable(dir) || !Files.isExecutable(dir)) {
+        println "ERROR: Permissions denied for path specified in -C"
+        System.exit(1)
+      }
+      println "Change Dir = " + base_path
+    }
+
+    if (options.f) {
+      if (options.f.take(1) == "/") {
+        // absolute path specified
+        fn_jenkinsfile = options.f
+      } else {
+        // relative path specified
+        fn_jenkinsfile = collapsePath(base_path + "/" + options.f)
+      }
+    }
+    println "Jenkins pipeline filename = " + fn_jenkinsfile
+
+    if (options.d) {
+      println "PWD = " + base_path
+      println "JINKIES in " + jinkies_dir_path
+    }
+
+  }
+
+}
+
+
+
+
+
+class JenkinsPostDelegate {
+  JenkinsPostDelegate() {
+  }
+
+  void always(Closure cl) {
+    println "always"
+  }
+
+  void changed(Closure cl) {
+    println "changed"
+  }
+
+  void failure(Closure cl) {
+    println "failure"
+  }
+
+  void success(Closure cl) {
+    println "success"
+  }
+
+  void unstable(Closure cl) {
+    println "unstable"
+  }
+}
+
+
+
+
+
+class JenkinsPipelineDelegate {
+  JenkinsPipelineDelegate() {
   }
 
   void classes(String name) {
@@ -15,26 +145,38 @@ class ArchitectureDelegate {
   void jar(String name) {
     println "jar:" + name
   }
+
+  void post(Closure cl) {
+    println "post"
+    cl.delegate = new JenkinsPostDelegate()
+    cl.resolveStrategy = Closure.DELEGATE_FIRST
+
+    cl()
+  }
 }
 
-class GroovyArchitecture {
-  static void runArchitectureRules(File dsl) {
+
+
+
+
+class Pipeline {
+  static void runJenkinsPipeline(File dsl) {
     Script dslScript = new GroovyShell().parse(dsl.text)
 
     dslScript.metaClass = createEMC(dslScript.class, {
         ExpandoMetaClass emc ->
 
-        emc.architecture = {
+        emc.pipeline = {
             Closure cl ->
 
-            cl.delegate = new ArchitectureDelegate()
+            cl.delegate = new JenkinsPipelineDelegate()
             cl.resolveStrategy = Closure.DELEGATE_FIRST
 
             cl()
         }
     })
     dslScript.run()
-    println "runArchitectureRules Finished"
+    println "runJenkinsPipeline Finished"
   }
 
   static ExpandoMetaClass createEMC(Class clazz, Closure cl) {
@@ -47,83 +189,10 @@ class GroovyArchitecture {
   }
 }
 
-String collapsePath(String path) {
-  while (path ==~ /.*\/\.\/.*/) {
-    path = path.replaceAll(/\/\.\//, "/")
-  }
-  while (path ==~ /.*\/[^\/]+\/\.\.\/.*/) {
-    path = path.replaceAll(/\/[^\/]+\/\.\.\// ,"/")
-  }
-  while (path ==~ /\/\.\.\/.*/) {
-    path = path.replaceFirst(/^\/\.\.\//, "/")
-  }
-  return path
-}
 
-def cli = new CliBuilder(usage:  "${this.class.simpleName} [OPTION]... [STAGE]",
-                         header: "Options:",
-                         footer: "Starting Stage:\n Skip to STAGE instead of starting at the first stage defined.")
-cli.f(longOpt: 'file', args: 1, argName: 'FILE', 'Read FILE as a Jenkinsfile.')
-cli.C(longOpt: 'directory', args: 1, argName: 'DIRECTORY', 'Change to DIRECTORY before doing anything.')
-cli.h(longOpt: 'help', 'Print this message and exit.')
-cli.v(longOpt: 'version', "Print the version number of ${this.class.simpleName} and exit.")
-cli.U(longOpt: 'unsandbox', 'Disable Groovy Sandbox.')
-cli.j(longOpt: 'jobs', args: 1, argName: 'JOBS', 'Specifies the number of jobs (node commands) to run simultaneously. Default is unlimited')
-cli.l(longOpt: 'load-average', args: 1, argName: 'LOAD', 'Specifies that no new jobs (node commands) should be started if there are others jobs running and the load average is at least LOAD (a floating-point number). Default is unlimited')
-cli.W(longOpt: 'workspace-base', args: 1, argName: 'DIRECTORY', 'Use DIRECTORY as the base directory to allocating workspaces. Default is present working directory.')
-cli.d('Print debugging information in addition to normal processing.')
-def options = cli.parse(args)
 
-if (options.h) {
-  // When user requests help, ignore the rest of the options and provide usage details
-  cli.usage()
-  System.exit(1)
-}
 
-if (options.arguments() && (options.arguments().size() > 1)) {
-  // When the user specifies more than one non-option argument, assume they meant to refer to two stages and inform them that only one starting stage may be specified
-  println "ERROR: Only one starting stage may be specified."
-  cli.usage()
-  System.exit(1)
-}
 
-def jinkies_dir_path = getClass().protectionDomain.codeSource.location.path
-def base_path        = System.getProperty("user.dir")
-def fn_jenkinsfile   = "Jenkinsfile"
-
-if (options.C) {
-  Path dir = Paths.get(options.C)
-  if (options.C.take(1) == "/") { // absolute path specified
-    base_path = options.C
-  } else {                        // relative path specified
-    base_path = base_path + "/" + options.C
-  }
-  base_path = collapsePath(base_path)
-  if (! Files.isDirectory(dir)) {
-    println "ERROR: Path specified in -C is not a directory."
-    System.exit(1)
-  }
-  if (!Files.isReadable(dir) || !Files.isExecutable(dir)) {
-    println "ERROR: Permissions denied for path specified in -C"
-    System.exit(1)
-  }
-  println "Change Dir = " + base_path
-}
-
-if (options.f) {
-  if (options.f.take(1) == "/") {
-    // absolute path specified
-  } else {
-    // relative path specified
-  }
-  fn_jenkinsfile = options.f
-}
-println "Jenkins pipeline filename = " + fn_jenkinsfile
-
-if (options.d) {
-  println "PWD = " + base_path
-  println "JINKIES in " + jinkies_dir_path
-}
-
-GroovyArchitecture.runArchitectureRules(new File(fn_jenkinsfile))
+def JinkiesConfiguration config = new JinkiesConfiguration(args)
+Pipeline.runJenkinsPipeline(new File(config.fn_jenkinsfile))
 
