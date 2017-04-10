@@ -5,13 +5,15 @@ VERSION ?= latest
 NAME = jinkies
 INSTANCE = idc
 
+GIT_BRANCH = $(shell git rev-parse --abbrev-ref HEAD)
+
 .PHONY: build run attach logs rm default
 
 build:
 	docker build -t $(NS)/$(REPO):$(VERSION) .
 
 run:
-	docker run           --name $(NAME)-$(INSTANCE) -i -t $(NS)/$(REPO):$(VERSION)
+	docker run --env GIT_BRANCH=${GIT_BRANCH} --name $(NAME)-$(INSTANCE) -i -t $(NS)/$(REPO):$(VERSION)
 
 attach:
 	docker attach --sig-proxy=true $(NAME)-$(INSTANCE)

@@ -19,8 +19,7 @@ RUN chmod 600 /root/.ssh/github
 WORKDIR /root
 
 RUN ssh -n -oStrictHostKeyChecking=no git@github.com ; true
-RUN git clone git@github.com:skepickle/jinkies.git
 
 WORKDIR /root/jinkies
 
-CMD git pull ; /bin/bash
+CMD git clone --branch ${GIT_BRANCH} git@github.com:skepickle/jinkies.git /root/jinkies ; /bin/bash
