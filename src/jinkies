@@ -6,9 +6,7 @@ import java.nio.file.Paths
 
 
 
-
-
-class JinkiesConfiguration {
+class Configuration {
 
   public String fn_jenkinsfile
 
@@ -28,7 +26,7 @@ class JinkiesConfiguration {
     return path
   }
 
-  JinkiesConfiguration(def args) {
+  Configuration(def args) {
 
     def cli = new CliBuilder(usage:  "${this.class.simpleName} [OPTION]... [STAGE]",
                              header: "Options:",
@@ -103,9 +101,18 @@ class JinkiesConfiguration {
 
 
 
+class JSP_Delegate_stage {
+
+  JSP_Delegate_stage(String name) {
+    println "JSP:stage " + name
+  }
+
+}
+
 
 
 class JenkinsPostDelegate {
+
   JenkinsPostDelegate() {
   }
 
@@ -128,13 +135,13 @@ class JenkinsPostDelegate {
   void unstable(Closure cl) {
     println "unstable"
   }
+
 }
 
 
 
-
-
 class JenkinsPipelineDelegate {
+
   JenkinsPipelineDelegate() {
   }
 
@@ -153,33 +160,52 @@ class JenkinsPipelineDelegate {
 
     cl()
   }
+
 }
 
 
 
+class Jinkies {
 
+  Configuration config
 
-class Pipeline {
-  static void runJenkinsPipeline(File dsl) {
+  Jinkies(String[] args) {
+    config = new Configuration(args)
+  }
+
+  void runPipeline() {
+    File dsl = new File(config.fn_jenkinsfile)
     Script dslScript = new GroovyShell().parse(dsl.text)
 
     dslScript.metaClass = createEMC(dslScript.class, {
-        ExpandoMetaClass emc ->
+      ExpandoMetaClass emc ->
 
-        emc.pipeline = {
-            Closure cl ->
+      emc.stage = { String name ->
+        println "stage:" + name
+      }
 
-            cl.delegate = new JenkinsPipelineDelegate()
-            cl.resolveStrategy = Closure.DELEGATE_FIRST
-
-            cl()
+/*     emc.git = { name, b=null ->
+        if (b != null) {
+          println "stage:" + name + b
+        } else {
+          println "stage:" + name
         }
+     }*/
+
+      emc.pipeline = {
+        Closure cl ->
+
+        cl.delegate = new JenkinsPipelineDelegate()
+        cl.resolveStrategy = Closure.DELEGATE_FIRST
+
+        cl()
+      }
     })
     dslScript.run()
-    println "runJenkinsPipeline Finished"
+    println "runPipeline Finished"
   }
 
-  static ExpandoMetaClass createEMC(Class clazz, Closure cl) {
+  ExpandoMetaClass createEMC(Class clazz, Closure cl) {
     ExpandoMetaClass emc = new ExpandoMetaClass(clazz, false)
 
     cl(emc)
@@ -187,12 +213,11 @@ class Pipeline {
     emc.initialize()
     return emc
   }
+
 }
 
 
 
-
-
-def JinkiesConfiguration config = new JinkiesConfiguration(args)
-Pipeline.runJenkinsPipeline(new File(config.fn_jenkinsfile))
+def Jinkies jinkies = new Jinkies(args)
+jinkies.runPipeline()
 

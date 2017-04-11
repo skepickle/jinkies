@@ -1,3 +1,5 @@
+stage "Stage 1"
+
 pipeline {
   classes "target/classes"
   jar "myLibrary.jar"
@@ -6,3 +8,4 @@ pipeline {
     }
   }
 }
+
