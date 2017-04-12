@@ -7,7 +7,7 @@ import java.nio.file.Paths
 enum PipelineType {
   UNKNOWN,
   SCRIPTED,
-  DECLARITIVE
+  DECLARATIVE
 }
 
 class Configuration {
@@ -15,6 +15,20 @@ class Configuration {
   public String fn_jenkinsfile
 
   PipelineType pt = PipelineType.UNKNOWN
+
+  void PipelineIsScripted() {
+    if (pt == PipelineType.DECLARATIVE) {
+      throw new Exception("Script has both declarative and scripted syntax")
+    }
+    pt = PipelineType.SCRIPTED
+  }
+
+  void PipelineIsDeclarative() {
+    if (pt == PipelineType.SCRIPTED) {
+      throw new Exception("Script has both declarative and scripted syntax")
+    }
+    pt = PipelineType.DECLARATIVE
+  }
 
   String collapsePath(String path) {
     while (path ==~ /.*\/\/.*/) {
@@ -152,6 +166,7 @@ class JenkinsPipelineDelegate {
 
   JenkinsPipelineDelegate(Configuration config) {
     this.config = config
+    this.config.PipelineIsDeclarative()
   }
 
   void classes(String name) {
@@ -190,6 +205,7 @@ class Jinkies {
       ExpandoMetaClass emc ->
 
       emc.stage = { String name ->
+        config.PipelineIsScripted()
         println "stage:" + name + " " + config.fn_jenkinsfile
       }
 
