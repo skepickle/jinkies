@@ -4,13 +4,19 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 
-
+enum PipelineType {
+  UNKNOWN,
+  SCRIPTED,
+  DECLARITIVE
+}
 
 class Configuration {
 
   public String fn_jenkinsfile
 
-  static String collapsePath(String path) {
+  PipelineType pt = PipelineType.UNKNOWN
+
+  String collapsePath(String path) {
     while (path ==~ /.*\/\/.*/) {
       path = path.replaceAll(/\/\//, "/")
     }
@@ -142,7 +148,10 @@ class JenkinsPostDelegate {
 
 class JenkinsPipelineDelegate {
 
-  JenkinsPipelineDelegate() {
+  def Configuration config
+
+  JenkinsPipelineDelegate(Configuration config) {
+    this.config = config
   }
 
   void classes(String name) {
@@ -181,7 +190,7 @@ class Jinkies {
       ExpandoMetaClass emc ->
 
       emc.stage = { String name ->
-        println "stage:" + name
+        println "stage:" + name + " " + config.fn_jenkinsfile
       }
 
 /*     emc.git = { name, b=null ->
@@ -195,7 +204,7 @@ class Jinkies {
       emc.pipeline = {
         Closure cl ->
 
-        cl.delegate = new JenkinsPipelineDelegate()
+        cl.delegate = new JenkinsPipelineDelegate(config)
         cl.resolveStrategy = Closure.DELEGATE_FIRST
 
         cl()
