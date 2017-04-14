@@ -1,11 +1,14 @@
 stage "Stage 1"
 
-pipeline {
+node {
+}
+
+/*pipeline {
   classes "target/classes"
   jar "myLibrary.jar"
   post {
     always {
     }
   }
-}
+}*/
 
