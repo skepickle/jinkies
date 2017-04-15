@@ -1,6 +1,19 @@
 stage "Stage 1"
 
+node('some_node') {
+
+ stage "test a"
+
+ stage "test b"
+
+}
+
 node {
+
+ stage "test c"
+
+ stage "test d"
+
 }
 
 /*pipeline {

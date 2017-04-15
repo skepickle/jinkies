@@ -5,13 +5,6 @@ import java.nio.file.Path
 import java.nio.file.Paths
 
 
-enum PipelineType {
-  UNKNOWN,
-  SCRIPTED,
-  DECLARATIVE
-}
-
-
 class StringLibrary {
   static String collapsePath(String path) {
     while (path ==~ /.*\/\/.*/) {
@@ -31,10 +24,48 @@ class StringLibrary {
 }
 
 
+enum PipelineType {
+  UNKNOWN,
+  SCRIPTED,
+  DECLARATIVE
+}
+
+
+class PipelineScriptStyle {
+
+  private PipelineType pt
+
+  PipelineScriptStyle() {
+    pt = PipelineType.UNKNOWN
+  }
+
+  void setScriptedPipeline() {
+    if (pt == PipelineType.UNKNOWN) {
+      pt = PipelineType.SCRIPTED
+    }
+  }
+
+  void setDeclarativePipeline() {
+    if (pt == PipelineType.SCRIPTED) {
+      throw new Exception("Script has both declarative and scripted syntax")
+    }
+    pt = PipelineType.DECLARATIVE
+  }
+
+  boolean isScriptedPipeline() {
+    return (pt == PipelineType.SCRIPTED)
+  }
+
+  boolean isDeclarativePipeline() {
+    return (pt == PipelineType.DECLARATIVE)
+  }
+}
+
+
 class Configuration {
 
   public String fn_jenkinsfile
-  PipelineType pt = PipelineType.UNKNOWN
+  public PipelineScriptStyle script_style = new PipelineScriptStyle()
 
   Configuration(def args) {
     def cli = new CliBuilder(usage:  "${this.class.simpleName} [OPTION]... [STAGE]",
@@ -45,10 +76,13 @@ class Configuration {
     cli.h(longOpt: 'help', 'Print this message and exit.')
     cli.v(longOpt: 'version', "Print the version number of ${this.class.simpleName} and exit.")
     cli.U(longOpt: 'unsandbox', 'Disable Groovy Sandbox.')
-    cli.j(longOpt: 'jobs', args: 1, argName: 'JOBS', 'Specifies the number of jobs (node commands) to run simultaneously. Default is unlimited')
+    cli.j(longOpt: 'jobs', args: 1, argName: 'JOBS',
+                   'Specifies the number of jobs (node commands) to run simultaneously. Default is unlimited')
     cli.l(longOpt: 'load-average', args: 1, argName: 'LOAD',
-                   'Specifies that no new jobs (node commands) should be started if there are others jobs running and the load average is at least LOAD (a floating-point number). Default is unlimited')
-    cli.W(longOpt: 'workspace-base', args: 1, argName: 'DIRECTORY', 'Use DIRECTORY as the base directory to allocating workspaces. Default is present working directory.')
+                   'Specifies that no new jobs (node commands) should be started if there are others jobs running'+
+                   ' and the load average is at least LOAD (a floating-point number). Default is unlimited')
+    cli.W(longOpt: 'workspace-base', args: 1, argName: 'DIRECTORY',
+                   'Use DIRECTORY as the base directory to allocating workspaces. Default is present working directory.')
     cli.d('Print debugging information in addition to normal processing.')
     def options = cli.parse(args)
     if (options.h) {
@@ -57,7 +91,8 @@ class Configuration {
       System.exit(1)
     }
     if (options.arguments() && (options.arguments().size() > 1)) {
-      // When the user specifies more than one non-option argument, assume they meant to refer to two stages and inform them that only one starting stage may be specified
+      // When the user specifies more than one non-option argument, assume they meant to refer to two stages and inform
+      //  them that only one starting stage may be specified
       println "ERROR: Only one starting stage may be specified."
       cli.usage()
       System.exit(1)
@@ -97,20 +132,6 @@ class Configuration {
       println "PWD = " + base_path
       println "JINKIES in " + jinkies_dir_path
     }
-  }
-
-  void PipelineIsScripted() {
-    if (pt == PipelineType.DECLARATIVE) {
-      throw new Exception("Script has both declarative and scripted syntax")
-    }
-    pt = PipelineType.SCRIPTED
-  }
-
-  void PipelineIsDeclarative() {
-    if (pt == PipelineType.SCRIPTED) {
-      throw new Exception("Script has both declarative and scripted syntax")
-    }
-    pt = PipelineType.DECLARATIVE
   }
 
 }
@@ -157,7 +178,7 @@ class JSP_Pipeline_Delegate {
 
   JSP_Pipeline_Delegate(Configuration config) {
     this.config = config
-    this.config.PipelineIsDeclarative()
+    this.config.script_style.setDeclarativePipeline()
   }
 
   void classes(String name) {
@@ -179,15 +200,31 @@ class JSP_Pipeline_Delegate {
 }
 
 
-class JSP_Stage_Delegate {
+class JSP_Node_Delegate {
 
   def Configuration config
 
-  JSP_Stage_Delegate(Configuration config) {
+  JSP_Node_Delegate(Configuration config, String name) {
     this.config = config
-    this.config.PipelineIsScripted()
+    this.config.script_style.setScriptedPipeline()
+    if (!name) {
+      println "node"
+    } else {
+      println "node("+name+")"
+    }
   }
 
+  void stage(String name) {
+    println "node->stage:" + name
+  }
+
+  protected void finalize() {
+    if (!name) {
+      println "node->finalize"
+    } else {
+      println "node("+name+")->finalize"
+    }
+  }
 }
 
 
@@ -206,18 +243,16 @@ class Jinkies {
     dslScript.metaClass = createEMC(dslScript.class, {
       ExpandoMetaClass emc ->
 
-      emc.stage = { String name ->
-        config.PipelineIsScripted()
+      emc.stage = {
+        String name ->
+        config.script_style.setScriptedPipeline()
         println "stage:" + name + " " + config.fn_jenkinsfile
       }
 
-
       emc.node = {
-        Closure cl ->
-
-        cl.delegate = new JSP_Stage_Delegate(config)
+        String name=null, Closure cl ->
+        cl.delegate = new JSP_Node_Delegate(config, name)
         cl.resolveStrategy = Closure.DELEGATE_FIRST
-
         cl()
       }
 
@@ -231,10 +266,8 @@ class Jinkies {
 
       emc.pipeline = {
         Closure cl ->
-
         cl.delegate = new JSP_Pipeline_Delegate(config)
         cl.resolveStrategy = Closure.DELEGATE_FIRST
-
         cl()
       }
     })
