@@ -5,6 +5,9 @@ import java.nio.file.Path
 import java.nio.file.Paths
 
 
+scriptDir = new File(getClass().protectionDomain.codeSource.location.path).parent
+println scriptDir
+
 class StringLibrary {
 
   static String collapsePath(String path) {
@@ -220,6 +223,13 @@ class JSP_Node_Delegate {
     }
   }
 
+  void git(LinkedHashMap lmh) {
+    if (!lmh.containsKey("url")) {
+      System.exit(1)
+    }
+    println "node.git(): " + lmh["url"]
+  }
+
 }
 
 
@@ -244,20 +254,17 @@ class Jinkies {
         println "stage:" + name + " " + config.fn_jenkinsfile
       }
 
+      emc.git = {
+        LinkedHashMap lhm ->
+        println "git fakey"
+      }
+
       emc.node = {
         String name=null, Closure cl ->
         cl.delegate = new JSP_Node_Delegate(config, name)
         cl.resolveStrategy = Closure.DELEGATE_FIRST
         cl()
       }
-
-/*    emc.git = { name, b=null ->
-        if (b != null) {
-          println "stage:" + name + b
-        } else {
-          println "stage:" + name
-        }
-      }*/
 
       emc.pipeline = {
         Closure cl ->
@@ -280,7 +287,6 @@ class Jinkies {
   }
 
 }
-
 
 def Jinkies jinkies = new Jinkies(args)
 jinkies.runPipeline()

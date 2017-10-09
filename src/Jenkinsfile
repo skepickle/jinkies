@@ -6,6 +6,8 @@ node('some_node') {
 
  stage "test b"
 
+ git url: 'https://github.com/somewhere/repo.git'
+
 }
 
 node {
